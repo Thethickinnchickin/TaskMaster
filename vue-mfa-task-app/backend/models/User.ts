@@ -6,7 +6,8 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
-  verificationExpDate: { type: Date }
+  verificationExpDate: { type: Date },
+  tasks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Task" }]
 });
 
 
@@ -20,7 +21,6 @@ UserSchema.pre("save", function (next) {
     // If the current date is greater than the expiration date, invalidate the verification
     if (currentDate > user.verificationExpDate) {
       user.isVerified = false; // Set isVerified to false
-      user.verificationCode = ""; // Clear the verification code
       user.verificationExpDate = null; // Clear the expiration date
     }
   }

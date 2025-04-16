@@ -1,13 +1,12 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from "vue-router";
-import Login from "@/views/AboutView.vue";
-import Register from "../views/Register.vue";
 import Tasks from "@/views/Task.vue";
+import EmailVerification from "@/views/EmailVerification.vue";
 
 const routes = [
   { path: "/", redirect: "/login" },
-  { path: "/login", component: Login },
-  { path: "/register", component: Register },
+  { path: "/login", component: EmailVerification },
+  { path: "/register", component: EmailVerification },
   { path: "/tasks", component: Tasks },
 ];
 

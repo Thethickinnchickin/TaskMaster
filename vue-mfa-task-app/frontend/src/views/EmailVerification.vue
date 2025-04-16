@@ -31,6 +31,7 @@
   import { ref } from "vue";
   import emailjs from "@emailjs/browser";
   import CryptoJS from "crypto-js";
+  import { useRouter } from 'vue-router'
 
 
   const secretKey = "mySuperSecretKey123!"; 
@@ -43,6 +44,7 @@
   const onRegistration = ref(false);
   const code = ref("");
   let savedCode = "";
+  const router = useRouter();
 
   // Function to generate a random salt
   const generateSalt = (): string => {
@@ -94,67 +96,82 @@
     savedCode = verificationCode.toString();
     savedCode = encryptCode(savedCode);
     let passwordEnc = '';
+    let url = '';
     if(forRegistration) {
       passwordEnc = hashedPassword(password.value);
     } else {
       passwordEnc = encryptCode(password.value);
     }
-    emailjs
-      .send("service_uzcsrq6", "template_pnegxjc", {
-        email: "mattreileydeveloper@gmail.com",
-        passcode: verificationCode,
-      }, "wUcej3QnlU5cqoB0E")
-      .then(async() => {
-        let url = ''
-        console.log(forRegistration)
-        if(forRegistration) {
-          url = 'register'
-        } else {
-          url = 'login'
-        }
-        console.log(url)
-        //Calling API to register the user after sending email with code
-        const data = { email: savedEmail, password: passwordEnc, verificationCode: savedCode };
-        fetch(`http://localhost:5000/api/auth/${url}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data) // Convert to JSON
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log(data)
-            message.value = data.message; // Display server response
-        })
-        .catch(error => {
-            console.error("Error verifying email:", error);
-            message.value = "❌ Error verifying email.";
-        });
-        onVerification.value = true;
-        message.value = "✅ Verification email sent!";
 
 
-      })
-      .catch((error) => {
-        console.error("❌ Failed to send email:", error);
-        message.value = "❌ Error sending email.";
-      });
-  };
 
-  const verifyEmail = () => {
-    const verification = { verificationCode: savedCode, email: email.value }; // Ensure correct key name
-    fetch('http://localhost:5000/api/auth/verify-account', {
+
+
+    if(forRegistration) {
+      url = 'register'
+    } else {
+      url = 'login'
+    }
+
+    //Calling API to register the user after sending email with code
+    const data = { email: savedEmail, password: passwordEnc, verificationCode: savedCode };
+    fetch(`https://localhost:5000/api/auth/${url}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
+        credentials: "include",
+        body: JSON.stringify(data) // Convert to JSON
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.isVerified == false) {
+          emailjs
+          .send("service_uzcsrq6", "template_pnegxjc", {
+            email: "mattreileydeveloper@gmail.com",
+            passcode: verificationCode,
+          }, "wUcej3QnlU5cqoB0E")
+          .then(() => {
+            onVerification.value = true;
+            message.value = "✅ Verification email sent!";
+          })
+          .catch((error) => {
+            console.error("❌ Failed to send email:", error);
+            message.value = "❌ Error sending email.";
+          });
+        }else {
+          router.push("/tasks");
+          message.value = data.message; // Display server response
+        }
+        
+        
+    })
+    .catch(error => {
+        console.error("Error verifying email:", error);
+        message.value = "❌ Error verifying email.";
+    });
+
+
+
+  };
+
+  const verifyEmail = () => {
+    const verification = { verificationCode: savedCode, email: email.value }; // Ensure correct key name
+    fetch('https://localhost:5000/api/auth/verify-account', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        credentials: 'include', 
         body: JSON.stringify(verification) // Convert to JSON
     })
     .then(response => response.json())
     .then(data => {
-        console.log(data)
-        message.value = data.message; // Display server response
+        if(data.ok) {
+          router.push("/tasks");
+        } else {
+          console.error("Something went wrong try logining again");
+        }
     })
     .catch(error => {
         console.error("Error verifying email:", error);
@@ -164,15 +181,18 @@
 
   const test = () => {
     const verification = { verificationCode: savedCode, email: email.value }; // Ensure correct key name
-    fetch('http://localhost:5000/api/auth/testing', {
+    fetch('https://localhost:5000/api/auth/testing', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
         },
+        credentials: 'include', 
+        body: JSON.stringify(verification)// This ensures cookies are sent with the request
     })
     .catch(error => {
         console.error("Error verifying email:", error);
     });
-  };
+};
+
 </script>
   

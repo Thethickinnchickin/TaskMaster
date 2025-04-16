@@ -1,9 +1,8 @@
 import express from "express";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
-import sendEmail from "../utils/email";
 import CryptoJS from "crypto-js";
+import { authenticateUser } from "../middleware/auth";
 
 const router = express.Router();
 const secretKey = "mySuperSecretKey123!"; 
@@ -70,10 +69,14 @@ router.post("/register", async (req, res) => {
       const user = new User({ email, password, verificationCode });
       await user.save();
   
-      res.status(201).json({ message: "User registered. Verification email sent!" });
+      res.status(201).json({ 
+        message: "User registered. Verification email sent!"
+        ,isVerified: false });
     } catch (error) {
       //returned if their is an error in creation of the user
-      res.status(400).json({ message: "Registration failed" });
+      res.status(400).json({ message: "Registration failed"
+        ,isVerified: false
+       });
     }
   } else {
     //returned if data sent by client is incomplete
@@ -95,19 +98,45 @@ router.post("/login", async (req, res) => {
         res.status(400).json({message: "Invalid credentials"});
         return;
       }
+      //Set the verification code for the user model and save it to Data base
+      user.verificationCode = verificationCode;
       await user.save();
       //If user is still verified then they will get a token 
       if(user.isVerified) {
-        //returns a cookie or session token tbd
+        //Checking if passwords match through decryption
+        if(comparePasswords(decryptCode(password), user.password)) {
+          const token = jwt.sign(
+            { userId: user._id, email: user.email },
+            "process.env.JWT_SECRET" as string,
+            { expiresIn: "2h" }
+          );
+      
+          // Send it as a secure cookie
+          res.cookie("authToken", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 2 * 60 * 60 * 1000 // 2 hours
+          });
+      
+          // Also send in response if you want client to store it manually
+          res.status(200).json({
+            message: "✅ Login successful",
+            ok: true,
+            isVerified: true
+          });
+
+        } else {
+          res.status(400).json({message: "Invalid credentials"});
+          return;
+        }
       } else {
         //Compares the given password to the hashed password in the database to see if they are a match
         if(comparePasswords(decryptCode(password), user.password)) {
-          //verifies the user if the passwords match
-          user.isVerified = true;
-          console.log("HELLOSDFFSD")
-          //Saves user to data base with updated values;
-          await user.save();
-          res.status(200).json({ message: "Login Almost Complete verification sent. Check email inbox" });
+          res.status(200).json({ 
+            message: "Login Almost Complete verification sent. Check email inbox",
+            isVerified: false
+           });
         } else {
           res.status(400).json({message: "Invalid credentials"});
           return;
@@ -115,23 +144,10 @@ router.post("/login", async (req, res) => {
 
       }
     } catch(error) {
+      console.log(error)
       res.status(400).json({ message: "Login error" });
     }
   }
-  // if(email && password) {
-  //   try {
-  //     const user = await User.findOne({ email });
-  //     if (!user) return res.status(404).json({ message: "User not found" });
-  
-  //     const isMatch = await bcrypt.compare(password, user.password);
-  //     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
-  
-  //     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET as string, { expiresIn: "1h" });
-  //     res.json({ token });
-  //   } catch (error) {
-  //     res.status(500).json({ message: "Login error" });
-  //   }
-  // }
 });
 
 // VERIFY EMAIL
@@ -153,7 +169,23 @@ router.post("/verify-account", async (req, res) => {
           const now = new Date(); // Get the current date and time
           now.setMinutes(now.getMinutes() + 2); // Add 2 minutes to the current time
           user.verificationExpDate = now;
-          await user.save();
+          await user.save(); // Save user to database 
+          //Create token to be sent to the client
+          const token = jwt.sign(
+            { userId: user._id, email: user.email },  // payload
+            "process.env.JWT_SECRET" as string,
+            { expiresIn: "2h" }
+          );
+
+          //Set the cookie in the request
+          res.cookie("authToken", token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "strict",
+            maxAge: 2 * 60 * 60 * 1000
+          });
+          
+          // Send this if email verification is completed
           res.json({ message: "Email verified successfully", ok: true });
         } else {
           //returned if verfication code is not correct
@@ -173,18 +205,11 @@ router.post("/verify-account", async (req, res) => {
   }
 });
 
-// VERIFY EMAIL
-//route to verify if the code sent to the users email for MFA is correct
-router.post("/testing", async (req, res) => {
-  //getting the required data from the body of the request
-  const user = await User.findOne({email: 'mattreileydeveloper@gmail.com'});
-  console.log(user);
-  if(user) {
-    user.save();
-  }
-  const user2 = await User.findOne({email: 'mattreileydeveloper@gmail.com'});
-  console.log(user2);
-  res.status(400).json({ message: "verification code incorrect" });
+router.post("/testing", authenticateUser, (req, res) => {
+  console.log("jhellsdaf")
+  const user = (req as any).user;
+  console.log(user)
+  res.status(200).json({ message: "✅ Authenticated user", user });
 });
 
 export default router;

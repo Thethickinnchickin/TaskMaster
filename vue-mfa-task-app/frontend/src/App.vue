@@ -1,9 +1,9 @@
 <template>
-  <EmailVerification />
+  <router-view />
 </template>
 
 <script setup lang="ts">
-import EmailVerification from "./components/EmailVerification.vue";
+import EmailVerification from "./views/EmailVerification.vue";
 </script>
 
 
